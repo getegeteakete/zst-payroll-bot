@@ -176,8 +176,12 @@ def calc_route_points(route_text, packing_text=""):
 def calc_packing_bonus(packing_text):
     """
     荷姿手当を返す
-    実データ検証結果（2026年4月解析、6,373レコード）:
-    バラ → +5000pt、それ以外（P/L、かご台車、空欄）→ 0pt
+    
+    【実データ検証結果（2026年4月解析、6,373レコード）】
+    - バラ → +5000pt（17ルートで検証、最頻値5000）
+    - P/L → 標準（追加なし）
+    - かご台車 → P/Lとほぼ同じ（差0が49件、平均+215）→ 追加なし
+    - 空欄 → P/Lとほぼ同じ（平均-115）→ 追加なし
     """
     if not packing_text:
         return 0
