@@ -152,8 +152,9 @@ def process_payroll_xlsx(input_xlsx_path: Path, output_dir: Path = None) -> dict
     output_dir = output_dir or Path(tempfile.mkdtemp(prefix="payroll_xlsx_"))
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # コピーして編集
-    output_xlsx = output_dir / f"完成_{input_xlsx_path.name}"
+    # コピーして編集（ファイル名から空白を除去：URLリンク化対策）
+    safe_input_name = input_xlsx_path.name.replace(" ", "_").replace("　", "_")
+    output_xlsx = output_dir / f"完成_{safe_input_name}"
     shutil.copy(input_xlsx_path, output_xlsx)
     
     wb = load_workbook(output_xlsx)
