@@ -32,14 +32,18 @@ async def health():
 
 
 @app.get("/files/{filename}")
-async def serve_file(filename: str):
-    """ローカルフォールバック用配信。本番ではSupabase Storage推奨"""
+async def serve_file(filename: str, name: str = None):
+    """ローカルフォールバック用配信。本番ではSupabase Storage推奨
+    ?name= クエリで日本語表示名を指定可能（ダウンロード時のファイル名）
+    """
     if "/" in filename or ".." in filename:
         raise HTTPException(400, "invalid filename")
     p = PUBLIC_FILES_DIR / filename
     if not p.exists():
         raise HTTPException(404)
-    return FileResponse(p, filename=filename)
+    # 表示名（ダウンロード時のファイル名）。指定なければ実ファイル名
+    display_name = name or filename
+    return FileResponse(p, filename=display_name)
 
 
 @app.post("/webhook")
