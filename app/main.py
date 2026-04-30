@@ -90,12 +90,53 @@ def handle_event(event: dict, background: BackgroundTasks):
 
     if msg_type == "text":
         text = msg.get("text", "").strip()
-        if text in ("ヘルプ", "help", "使い方"):
+        
+        # ヘルプ
+        if text in ("ヘルプ", "help", "使い方", "メニュー"):
             reply_message(reply_token, [text_message(_help_text())])
             return
+        
+        # ウィザード進行中の入力かチェック
+        from app.wizard import (
+            is_in_session, handle_wizard_input, handle_evaluation,
+            start_wizard, cancel_wizard
+        )
+        from app.history_search import handle_history_search
+        
+        # 1. ウィザード入力中
+        if is_in_session(user_id):
+            wizard_response = handle_wizard_input(user_id, text)
+            if wizard_response:
+                reply_message(reply_token, [text_message(wizard_response)])
+                return
+            # 計算後の追加コマンド（金額/比較）
+            eval_response = handle_evaluation(user_id, text)
+            if eval_response:
+                reply_message(reply_token, [text_message(eval_response)])
+                return
+        
+        # 2. ウィザード開始トリガー
+        if text in ("見積", "見積もり", "見積り", "原価", "原価計算", "計算"):
+            reply_message(reply_token, [text_message(start_wizard(user_id))])
+            return
+        
+        # 3. キャンセル
+        if text in ("キャンセル", "終了", "中止"):
+            reply_message(reply_token, [text_message(cancel_wizard(user_id))])
+            return
+        
+        # 4. 履歴検索
+        if text.startswith("履歴"):
+            reply_message(reply_token, [text_message(handle_history_search(text))])
+            return
+        
+        # その他
         reply_message(reply_token, [text_message(
-            "配車CSVファイル（.csv または .txt）を送ってください。\n"
-            "「ヘルプ」と送ると使い方が表示されます。"
+            "📋 使い方:\n"
+            "・配車CSV / Excel送信 → 給与明細表生成\n"
+            "・「見積」 → 原価計算ウィザード\n"
+            "・「履歴 [地名]」 → 過去実績検索\n"
+            "・「ヘルプ」 → 詳細"
         )])
         return
 
@@ -248,20 +289,25 @@ def _decode_csv(b: bytes) -> str:
 
 def _help_text() -> str:
     return (
-        "📋 ZST給与計算Bot 使い方\n\n"
-        "▼ 方法1: CSV送信（自動生成）\n"
-        "配車CSVを送ると、明細表（Excel/PDF）を自動生成\n\n"
-        "【CSVのカラム】\n"
-        "・日付（必須）例: 2024-08-01\n"
-        "・乗務員（複数人時必須）\n"
-        "・運行行程（必須）例: 東大阪市～小牧市\n"
-        "・便（任意）①/②/③\n"
-        "・荷姿（任意）P/L、バラ、かご台車\n\n"
-        "▼ 方法2: Excel送信（補完モード）\n"
-        "ポイント明細表のExcelに運行行程・荷姿を入力した状態で送ると\n"
-        "・空欄の追加ポイントを自動補完\n"
-        "・既存の入力値はそのまま尊重\n"
-        "・基本ポイント・集計を自動計算\n"
-        "→ 完成版Excel/PDFを返却\n\n"
-        "「ヘルプ」と送るとこのメッセージが表示されます。"
+        "📋 ZST業務支援Bot 使い方\n"
+        "━━━━━━━━━━━━━━━\n\n"
+        "【🚛 給与計算】\n"
+        "▶ CSV送信\n"
+        "  配車CSVを送ると明細表自動生成\n\n"
+        "▶ Excel送信\n"
+        "  ポイント明細表に運行行程入力した\n"
+        "  Excelを送ると追加ポイント自動補完\n\n"
+        "【💰 原価計算（営業向け）】\n"
+        "▶「見積」と送信\n"
+        "  ウィザードが7つの質問\n"
+        "  → 最低受注額・推奨単価を自動算出\n\n"
+        "▶ 計算後の追加コマンド\n"
+        "・「金額 70000」採算判定\n"
+        "・「比較 60000 70000 80000」複数比較\n\n"
+        "【📚 過去実績検索】\n"
+        "▶「履歴 [地名]」と送信\n"
+        "  例: 「履歴 春日井市」\n"
+        "      「履歴 大阪 名古屋」\n\n"
+        "【🚪 終了】\n"
+        "「キャンセル」「終了」"
     )
