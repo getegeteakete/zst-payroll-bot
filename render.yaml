@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: zst-payroll-line-bot
+    runtime: docker
+    plan: starter  # $7/月。freeでも動くが画像ビルド時間長め
+    region: singapore  # 日本に近いリージョン
+    healthCheckPath: /health
+    envVars:
+      - key: LINE_CHANNEL_SECRET
+        sync: false  # ダッシュボードで手動入力
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
