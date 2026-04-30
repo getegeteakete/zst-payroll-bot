@@ -7,6 +7,7 @@ import requests
 from pathlib import Path
 from datetime import datetime
 import secrets
+import urllib.parse
 
 
 def upload_file_to_supabase(local_path: Path, bucket: str = "payroll", expires_in: int = 86400) -> str:
@@ -58,12 +59,26 @@ def _content_type(path: Path) -> str:
 
 
 def _local_fallback_url(local_path: Path) -> str:
-    """開発用フォールバック: PUBLIC_BASE_URL/files/<filename> 形式"""
+    """
+    開発用フォールバック
+    ファイル名はASCII safe（token+拡張子）にして、
+    ダウンロード時の日本語名は ?name= クエリで指定する
+    """
     base = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000")
-    # 共有ディレクトリにコピーして公開
     public_dir = Path("/tmp/public_files")
     public_dir.mkdir(exist_ok=True)
-    token = secrets.token_urlsafe(16)
-    target = public_dir / f"{token}_{local_path.name}"
+    
+    # ASCII safe な保存ファイル名（token + 拡張子のみ）
+    token = secrets.token_urlsafe(12)
+    suffix = local_path.suffix.lower()
+    safe_name = f"{token}{suffix}"
+    
+    target = public_dir / safe_name
     target.write_bytes(local_path.read_bytes())
-    return f"{base}/files/{target.name}"
+    
+    # 表示用ファイル名はURLエンコードしてクエリパラメータに
+    # スペースは _ に置換しておく（LINEのリンク認識対策）
+    display_name = local_path.name.replace(" ", "_").replace("　", "_")
+    encoded_display = urllib.parse.quote(display_name)
+    
+    return f"{base}/files/{safe_name}?name={encoded_display}"
