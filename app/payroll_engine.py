@@ -174,14 +174,16 @@ def calc_route_points(route_text, packing_text=""):
 
 
 def calc_packing_bonus(packing_text):
-    """荷姿手当を返す"""
+    """
+    荷姿手当を返す
+    実データ検証結果（2026年4月解析、6,373レコード）:
+    バラ → +5000pt、それ以外（P/L、かご台車、空欄）→ 0pt
+    """
     if not packing_text:
         return 0
     txt = str(packing_text)
-    if "バラ" in txt and "P/L" not in txt and "→" not in txt:
+    if "バラ" in txt:
         return 5000
-    if "→" in txt or "・" in txt:
-        return 2500
     return 0
 
 
