@@ -56,9 +56,12 @@ def reply_message(reply_token: str, messages: list):
         "Content-Type": "application/json",
     }
     payload = {"replyToken": reply_token, "messages": messages}
+    print(f"[LINE reply] sending to token={reply_token[:20]}... msgs={len(messages)}")
     r = requests.post(url, headers=headers, json=payload, timeout=10)
     if r.status_code >= 400:
         print(f"[LINE reply error] {r.status_code} {r.text}")
+    else:
+        print(f"[LINE reply ok] {r.status_code}")
     return r
 
 
@@ -169,7 +172,7 @@ def error_flex_message(error: str) -> dict:
                     {"type": "text", "text": error, "size": "sm", "wrap": True, "margin": "md"},
                     {"type": "text",
                      "text": "CSVのカラムは「日付・便・運行行程・荷姿」を含めてください",
-                     "size": "xs", "color": "#888", "wrap": True, "margin": "md"}
+                     "size": "xs", "color": "#888888", "wrap": True, "margin": "md"}
                 ]
             }
         }

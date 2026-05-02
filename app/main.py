@@ -66,11 +66,12 @@ async def webhook(
             handle_event(event, background)
         except Exception as e:
             traceback.print_exc()
-            # エラー時の応答試行
+            print(f"[WEBHOOK] handle_event error: {e}")
+            # エラー時の応答試行（text_messageで安全に送信）
             reply_token = event.get("replyToken")
             if reply_token:
                 try:
-                    reply_message(reply_token, [error_flex_message(f"内部エラー: {e}")])
+                    reply_message(reply_token, [text_message(f"⚠ 内部エラー: {e}")])
                 except Exception:
                     pass
 
@@ -144,6 +145,7 @@ def handle_event(event: dict, background: BackgroundTasks):
         file_name = msg.get("fileName", "")
         file_size = msg.get("fileSize", 0)
         message_id = msg.get("id")
+        print(f"[FILE] received: {file_name} ({file_size} bytes) msg_id={message_id}")
 
         if file_size > 10 * 1024 * 1024:
             reply_message(reply_token, [text_message("⚠ ファイルサイズは10MB以下にしてください")])
@@ -174,7 +176,9 @@ def handle_event(event: dict, background: BackgroundTasks):
                 f"📄 CSV処理モード\n"
                 f"計算中…通常10〜30秒で完了します。"
             )
+        print(f"[FILE] sending ACK for {file_name}")
         reply_message(reply_token, [text_message(ack_msg)])
+        print(f"[FILE] ACK sent, starting background task")
 
         # バックグラウンド処理（拡張子で分岐）
         if is_xlsx:
@@ -192,18 +196,23 @@ def handle_event(event: dict, background: BackgroundTasks):
 def process_in_background(message_id: str, user_id: str, file_name: str):
     """CSV処理をバックグラウンドで"""
     try:
+        print(f"[BG-CSV] start: {file_name} user={user_id[:10]}...")
         # CSVダウンロード
         content = download_message_content(message_id)
+        print(f"[BG-CSV] downloaded: {len(content)} bytes")
 
         # エンコーディング判定（BOM/UTF-8/Shift_JIS 自動）
         text = _decode_csv(content)
+        print(f"[BG-CSV] decoded: {len(text)} chars")
 
         # 給与処理
         result = process_payroll(text)
+        print(f"[BG-CSV] processed: {result['driver_name']}")
 
         # ストレージにアップロード
         xlsx_url = upload_file_to_supabase(result["xlsx_path"])
         pdf_url = upload_file_to_supabase(result["pdf_path"])
+        print(f"[BG-CSV] uploaded: xlsx={xlsx_url[:50]}...")
 
         # LINE Push（結果通知）
         push_message(user_id, [
@@ -216,11 +225,14 @@ def process_in_background(message_id: str, user_id: str, file_name: str):
                 low_conf_count=result["low_conf_count"],
             )
         ])
+        print(f"[BG-CSV] done: {file_name}")
     except ValueError as e:
-        push_message(user_id, [error_flex_message(str(e))])
+        print(f"[BG-CSV] ValueError: {e}")
+        push_message(user_id, [text_message(f"⚠ 処理エラー: {e}")])
     except Exception as e:
         traceback.print_exc()
-        push_message(user_id, [error_flex_message(f"処理中にエラー: {e}")])
+        print(f"[BG-CSV] Exception: {e}")
+        push_message(user_id, [text_message(f"⚠ 処理中にエラーが発生しました: {e}")])
 
 
 def process_xlsx_in_background(message_id: str, user_id: str, file_name: str):
@@ -271,10 +283,12 @@ def process_xlsx_in_background(message_id: str, user_id: str, file_name: str):
         
         push_message(user_id, [text_message(msg)])
     except ValueError as e:
-        push_message(user_id, [error_flex_message(str(e))])
+        print(f"[BG-XLSX] ValueError: {e}")
+        push_message(user_id, [text_message(f"⚠ Excel処理エラー: {e}")])
     except Exception as e:
         traceback.print_exc()
-        push_message(user_id, [error_flex_message(f"Excel処理中にエラー: {e}")])
+        print(f"[BG-XLSX] Exception: {e}")
+        push_message(user_id, [text_message(f"⚠ Excel処理中にエラーが発生しました: {e}")])
 
 
 def _decode_csv(b: bytes) -> str:
