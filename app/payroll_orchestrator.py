@@ -36,6 +36,9 @@ def parse_dispatch_csv(csv_text: str) -> tuple[dict, dict]:
     
     返り値: (driver_name, dispatch_by_date), warnings
     """
+    # BOM除去（念のため）
+    csv_text = csv_text.lstrip('\ufeff')
+
     f = io.StringIO(csv_text)
     reader = csv.DictReader(f)
     fieldnames = reader.fieldnames or []
@@ -43,22 +46,56 @@ def parse_dispatch_csv(csv_text: str) -> tuple[dict, dict]:
 
     # カラム名のゆらぎを正規化
     col_map = {}
+    # BOM付きや空白付きのカラム名をクリーンアップ
+    clean_fields = {col: col.strip().strip('\ufeff').strip('\u200b') for col in fieldnames}
+
+    print(f"[CSV] 検出カラム: {fieldnames}")
+    print(f"[CSV] クリーンカラム: {list(clean_fields.values())}")
+
     for col in fieldnames:
-        col_lower = col.strip().lower()
-        if col in ("日付", "date") or "日付" in col:
+        cleaned = clean_fields[col]
+        col_lower = cleaned.lower()
+        # 日付
+        if cleaned in ("日付", "date", "Date", "DATE") or "日付" in cleaned or "年月日" in cleaned or col_lower == "date":
             col_map["date"] = col
-        elif col in ("便", "便号", "trip"):
+        # 便
+        elif cleaned in ("便", "便号", "trip", "便名", "Trip", "TRIP") or "便" in cleaned:
             col_map["trip"] = col
-        elif "運行" in col or "ルート" in col or "route" in col_lower:
+        # 運行行程
+        elif "運行" in cleaned or "ルート" in cleaned or "行程" in cleaned or "行先" in cleaned or "配送先" in cleaned or col_lower in ("route", "destination"):
             col_map["route"] = col
-        elif "荷姿" in col or "荷物" in col or "package" in col_lower:
+        # 荷姿
+        elif "荷姿" in cleaned or "荷物" in cleaned or "荷種" in cleaned or col_lower in ("package", "packing", "cargo"):
             col_map["packing"] = col
-        elif "乗務員" in col or "ドライバー" in col or "名前" in col or "driver" in col_lower:
+        # 乗務員
+        elif "乗務員" in cleaned or "ドライバー" in cleaned or "名前" in cleaned or "氏名" in cleaned or "担当" in cleaned or col_lower in ("driver", "name"):
             col_map["driver"] = col
+
+    print(f"[CSV] マッピング結果: {col_map}")
+
+    # カラムが見つからない場合、位置ベースでフォールバック
+    if "date" not in col_map and len(fieldnames) >= 3:
+        # 1列目を日付と仮定
+        first_col = fieldnames[0]
+        col_map["date"] = first_col
+        warnings.append(f"日付カラムを自動推定: 「{first_col}」")
+        print(f"[CSV] 日付カラムをフォールバック: {first_col}")
+
+    if "route" not in col_map and len(fieldnames) >= 3:
+        # 3列目を運行行程と仮定
+        third_col = fieldnames[2] if len(fieldnames) > 2 else fieldnames[-1]
+        col_map["route"] = third_col
+        warnings.append(f"運行行程カラムを自動推定: 「{third_col}」")
+        print(f"[CSV] 運行行程カラムをフォールバック: {third_col}")
 
     for required in ("date", "route"):
         if required not in col_map:
-            raise ValueError(f"CSVに必須カラムがありません: {required}")
+            label = "日付" if required == "date" else "運行行程"
+            raise ValueError(
+                f"CSVに必須カラムがありません: {label}\n"
+                f"検出されたカラム名: {[clean_fields[c] for c in fieldnames]}\n"
+                f"「日付」「便」「運行行程」「荷姿」を含むCSVを送ってください"
+            )
 
     driver_name = "（名称未指定）"
     by_date = defaultdict(lambda: [None, None, None])
